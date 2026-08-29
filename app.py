@@ -1,4 +1,4 @@
-import tkinter as tk
+import streamlit as st
 
 # ---------- Quiz Data ----------
 questions = [
@@ -29,173 +29,102 @@ questions = [
     }
 ]
 
-# ---------- Main Application Class ----------
-class QuizApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Python Quiz Game")
-        self.root.geometry("600x400")
-        self.root.configure(bg="#f0f4f7")
+# ---------- Session State Initialization ----------
+if "current_question" not in st.session_state:
+    st.session_state.current_question = 0
+    st.session_state.score = 0
+    st.session_state.answered = False
+    st.session_state.selected_option = None
+    st.session_state.quiz_finished = False
 
-        # State variables
-        self.current_question = 0
-        self.score = 0
+# ---------- Helper Functions ----------
+def check_answer():
+    """Check the selected answer and update score."""
+    q_data = questions[st.session_state.current_question]
+    if st.session_state.selected_option == q_data["correct"]:
+        st.session_state.score += 1
+    st.session_state.answered = True
 
-        # Fonts and colors
-        self.question_font = ("Arial", 16, "bold")
-        self.option_font = ("Arial", 12)
-        self.button_font = ("Arial", 12, "bold")
-        self.bg_color = "#f0f4f7"
-        self.card_color = "#ffffff"
-        self.primary_color = "#4a90d9"
-        self.success_color = "#4caf50"
-        self.danger_color = "#f44336"
-        self.text_color = "#333333"
+def next_question():
+    """Move to the next question or finish the quiz."""
+    st.session_state.current_question += 1
+    st.session_state.answered = False
+    st.session_state.selected_option = None
+    if st.session_state.current_question >= len(questions):
+        st.session_state.quiz_finished = True
 
-        # Build UI
-        self.create_widgets()
-        self.load_question()
+def restart_quiz():
+    """Reset all session state variables."""
+    st.session_state.current_question = 0
+    st.session_state.score = 0
+    st.session_state.answered = False
+    st.session_state.selected_option = None
+    st.session_state.quiz_finished = False
 
-    def create_widgets(self):
-        # Score label (top right)
-        self.score_label = tk.Label(
-            self.root,
-            text="Score: 0",
-            font=self.button_font,
-            bg=self.bg_color,
-            fg=self.primary_color
-        )
-        self.score_label.pack(anchor="ne", padx=20, pady=10)
+# ---------- UI Layout ----------
+st.set_page_config(page_title="Python Quiz", page_icon="🧠", layout="centered")
 
-        # Main card frame (holds question and options)
-        self.card = tk.Frame(self.root, bg=self.card_color, bd=2, relief="groove")
-        self.card.pack(pady=10, padx=20, fill="both", expand=True)
+# Title and header
+st.title("🧠 Python Quiz Game")
+st.markdown("---")
 
-        # Question label
-        self.question_label = tk.Label(
-            self.card,
-            text="",
-            font=self.question_font,
-            bg=self.card_color,
-            fg=self.text_color,
-            wraplength=500,
-            justify="center"
-        )
-        self.question_label.pack(pady=20, padx=20)
+# ---------- Quiz Logic ----------
+if st.session_state.quiz_finished:
+    # Final score screen
+    st.balloons()
+    st.header("🎉 Quiz Finished!")
+    st.subheader(f"Your final score: **{st.session_state.score} / {len(questions)}**")
+    if st.session_state.score == len(questions):
+        st.success("Perfect score! You're a genius!")
+    elif st.session_state.score >= len(questions) * 0.7:
+        st.info("Great job! You know your stuff.")
+    else:
+        st.warning("Keep practicing! You'll get better.")
+    st.button("Restart Quiz", on_click=restart_quiz)
 
-        # Options frame
-        self.options_frame = tk.Frame(self.card, bg=self.card_color)
-        self.options_frame.pack(pady=10, padx=20)
+else:
+    # Display progress
+    progress = st.session_state.current_question / len(questions)
+    st.progress(progress)
+    st.markdown(f"**Question {st.session_state.current_question + 1} of {len(questions)}**")
+    st.markdown(f"**Score: {st.session_state.score}**")
 
-        # Buttons for the four options
-        self.option_buttons = []
-        for i in range(4):
-            btn = tk.Button(
-                self.options_frame,
-                text="",
-                font=self.option_font,
-                bg=self.primary_color,
-                fg="white",
-                activebackground="#3a7bc8",
-                activeforeground="white",
-                width=30,
-                pady=8,
-                command=lambda idx=i: self.check_answer(idx)
-            )
-            btn.grid(row=i//2, column=i%2, padx=10, pady=5)
-            self.option_buttons.append(btn)
+    # Get current question data
+    q_data = questions[st.session_state.current_question]
+    st.subheader(q_data["question"])
 
-        # Next button (initially disabled)
-        self.next_button = tk.Button(
-            self.root,
-            text="Next",
-            font=self.button_font,
-            bg=self.primary_color,
-            fg="white",
-            activebackground="#3a7bc8",
-            activeforeground="white",
-            state="disabled",
-            command=self.next_question
-        )
-        self.next_button.pack(pady=20)
+    # Option selection (radio buttons)
+    options = q_data["options"]
+    selected = st.radio(
+        "Choose your answer:",
+        options,
+        index=None,
+        key=f"option_{st.session_state.current_question}",
+        disabled=st.session_state.answered
+    )
+    st.session_state.selected_option = options.index(selected) if selected is not None else None
 
-    def load_question(self):
-        """Display the current question and its options."""
-        q_data = questions[self.current_question]
-        self.question_label.config(text=q_data["question"])
+    # Layout for buttons
+    col1, col2 = st.columns([1, 1])
 
-        # Reset option button styles and enable them
-        for i, btn in enumerate(self.option_buttons):
-            btn.config(
-                text=q_data["options"][i],
-                bg=self.primary_color,
-                state="normal"
-            )
+    with col1:
+        if not st.session_state.answered:
+            if st.button("Submit", type="primary", use_container_width=True):
+                if st.session_state.selected_option is not None:
+                    check_answer()
+                else:
+                    st.warning("Please select an answer first.")
 
-        # Disable Next button until an answer is chosen
-        self.next_button.config(state="disabled")
+    with col2:
+        if st.session_state.answered:
+            if st.button("Next ➡️", type="primary", use_container_width=True):
+                next_question()
+                st.rerun()
 
-    def check_answer(self, selected_idx):
-        """Handle answer selection, give feedback, and update score."""
-        q_data = questions[self.current_question]
+    # Show feedback after answering
+    if st.session_state.answered:
         correct_idx = q_data["correct"]
-
-        # Disable all option buttons after selection
-        for btn in self.option_buttons:
-            btn.config(state="disabled")
-
-        # Highlight correct and wrong answers
-        self.option_buttons[correct_idx].config(bg=self.success_color)
-        if selected_idx != correct_idx:
-            self.option_buttons[selected_idx].config(bg=self.danger_color)
-            # If user selected wrong, still show correct answer
+        if st.session_state.selected_option == correct_idx:
+            st.success("✅ Correct!")
         else:
-            # Increment score if correct
-            self.score += 1
-            self.score_label.config(text=f"Score: {self.score}")
-
-        # Enable Next button
-        self.next_button.config(state="normal")
-
-    def next_question(self):
-        """Move to the next question or show final result."""
-        self.current_question += 1
-        if self.current_question < len(questions):
-            self.load_question()
-        else:
-            self.show_result()
-
-    def show_result(self):
-        """Display the final score screen."""
-        # Clear the card and show final score
-        self.card.destroy()
-        self.next_button.destroy()
-
-        result_label = tk.Label(
-            self.root,
-            text=f"Quiz Finished!\nYour score: {self.score}/{len(questions)}",
-            font=("Arial", 20, "bold"),
-            bg=self.bg_color,
-            fg=self.primary_color,
-            justify="center"
-        )
-        result_label.pack(expand=True)
-
-        # Optional: Add a "Quit" button
-        quit_button = tk.Button(
-            self.root,
-            text="Quit",
-            font=self.button_font,
-            bg=self.danger_color,
-            fg="white",
-            command=self.root.quit,
-            width=10,
-            pady=5
-        )
-        quit_button.pack(pady=20)
-
-# ---------- Run the Application ----------
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = QuizApp(root)
-    root.mainloop()
+            st.error(f"❌ Incorrect! The correct answer was **{options[correct_idx]}**.")
